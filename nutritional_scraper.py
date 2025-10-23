@@ -32,8 +32,8 @@ REQUEST_DELAY = 2  # segundos entre requisições
 # Colunas do CSV
 CSV_COLUMNS = [
     'nome', 'url', 'porcao', 'calorias', 'carboidratos', 'proteinas',
-    'gorduras', 'gorduras_saturadas', 'fibras', 'acucares', 'sodio',
-    'data_coleta', 'categoria'
+    'gorduras', 'gorduras_saturadas', 'gorduras_trans', 'fibras', 
+    'acucares', 'acucares_adicionados', 'sodio', 'data_coleta', 'categoria'
 ]
 
 
@@ -135,6 +135,7 @@ def clean_numeric_value(value: str) -> float:
 def extract_porcao(table) -> str:
     """
     Extrai porção de diferentes locais da tabela com suporte a múltiplos formatos.
+    Foca especificamente na estrutura padrão da Adaptogen.
     
     Args:
         table: Elemento BeautifulSoup da tabela
@@ -142,25 +143,53 @@ def extract_porcao(table) -> str:
     Returns:
         str: Porção extraída ou string vazia se não encontrar
     """
-    # Padrões regex para diferentes formatos de porção
+    # Padrões regex específicos para a estrutura da Adaptogen
     patterns = [
-        r'Porção:\s*(.+?)(?:\n|<|$)',           # "Porção: 25 g (1 unidade)"
-        r'Porção de\s+(.+?)(?:\n|<|$)',         # "Porção de 2 dosadores – 10g"
-        r'Porção\s+de\s+(.+?)(?:\n|<|$)',       # "Porção de 10g"
-        r'Porção\s+(.+?)(?:\n|<|$)',            # "Porção 10g"
+        r'Porção:\s*(\d+\s*g\s*\([^)]+\))',     # "Porção: 33 g (2 dosadores)"
+        r'Porção:\s*(\d+\s*g)',                  # "Porção: 25 g"
+        r'Porção:\s*(\d+\s*g\s*\(\d+\s*unidade[s]?\))',  # "Porção: 25 g (1 unidade)"
+        r'Porção:\s*(.+?)(?:\n|<|$)',            # "Porção: qualquer coisa"
+        r'Porção de\s+(.+?)(?:\n|<|$)',          # "Porção de 2 dosadores – 10g"
+        r'Porção\s+de\s+(.+?)(?:\n|<|$)',        # "Porção de 10g"
+        r'Porção\s+(.+?)(?:\n|<|$)',             # "Porção 10g"
     ]
     
-    # 1. Busca no thead
+    # 1. Busca no thead - foca na estrutura padrão da Adaptogen
     thead = table.find('thead')
     if thead:
-        text = thead.get_text()
-        for pattern in patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                porcao = match.group(1).strip()
-                # Remove quebras de linha extras e limpa o texto
-                porcao = ' '.join(porcao.split())
-                return porcao
+        # Busca especificamente em células com colspan (cabeçalho principal)
+        th_colspan = thead.find('th', {'colspan': True})
+        if th_colspan:
+            # Primeiro tenta extrair de elementos <strong> ou <p> dentro do th
+            strong_elements = th_colspan.find_all(['strong', 'p'])
+            for element in strong_elements:
+                text = element.get_text()
+                for pattern in patterns:
+                    match = re.search(pattern, text, re.IGNORECASE)
+                    if match:
+                        porcao = match.group(1).strip()
+                        porcao = ' '.join(porcao.split())
+                        return porcao
+            
+            # Se não encontrou nos elementos internos, tenta o texto completo do th
+            text = th_colspan.get_text()
+            for pattern in patterns:
+                match = re.search(pattern, text, re.IGNORECASE)
+                if match:
+                    porcao = match.group(1).strip()
+                    porcao = ' '.join(porcao.split())
+                    return porcao
+        
+        # Fallback: busca em todas as células do thead
+        all_th = thead.find_all('th')
+        for th in all_th:
+            text = th.get_text()
+            for pattern in patterns:
+                match = re.search(pattern, text, re.IGNORECASE)
+                if match:
+                    porcao = match.group(1).strip()
+                    porcao = ' '.join(porcao.split())
+                    return porcao
     
     # 2. Busca na primeira linha do tbody (caso especial como Panic Pré-Treino)
     tbody = table.find('tbody')
@@ -227,8 +256,10 @@ def parse_nutritional_table(soup: BeautifulSoup) -> Optional[Dict]:
         'proteinas': 0,
         'gorduras': 0,
         'gorduras_saturadas': 0,
+        'gorduras_trans': 0,
         'fibras': 0,
         'acucares': 0,
+        'acucares_adicionados': 0,
         'sodio': 0
     }
     
@@ -242,8 +273,13 @@ def parse_nutritional_table(soup: BeautifulSoup) -> Optional[Dict]:
         'proteínas': 'proteinas',
         'gorduras totais': 'gorduras',
         'gorduras saturadas': 'gorduras_saturadas',
+        'gorduras trans': 'gorduras_trans',  # Adicionado
         'fibras alimentares': 'fibras',
+        'fibra alimentar': 'fibras',  # Variação singular
         'açúcares totais': 'acucares',
+        'açucares totais': 'acucares',  # Variação sem acento
+        'açúcares adicionados': 'acucares_adicionados',  # Adicionado
+        'açucares adicionados': 'acucares_adicionados',  # Variação sem acento
         'sódio': 'sodio'
     }
     
@@ -301,8 +337,10 @@ def scrape_product(url: str, categoria: str) -> Optional[Dict]:
             'proteinas': nutritional_data['proteinas'],
             'gorduras': nutritional_data['gorduras'],
             'gorduras_saturadas': nutritional_data['gorduras_saturadas'],
+            'gorduras_trans': nutritional_data['gorduras_trans'],
             'fibras': nutritional_data['fibras'],
             'acucares': nutritional_data['acucares'],
+            'acucares_adicionados': nutritional_data['acucares_adicionados'],
             'sodio': nutritional_data['sodio'],
             'data_coleta': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'categoria': categoria

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Adaptogen Nutritional Scraper
-Extrai tabelas nutricionais de produtos e salva em CSV.
+Adaptogen nutritional facts scraper.
+
+Visits individual product URLs and emits a flattened CSV snapshot.
 """
 
 import requests
@@ -14,428 +15,338 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import re
 
-# Configuração de logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
-# Constantes
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
 }
-REQUEST_DELAY = 2  # segundos entre requisições
+REQUEST_DELAY = 2  # seconds between requests
 
-# Colunas do CSV
 CSV_COLUMNS = [
-    'nome', 'url', 'porcao', 'calorias', 'carboidratos', 'proteinas',
-    'gorduras', 'gorduras_saturadas', 'gorduras_trans', 'fibras', 
-    'acucares', 'acucares_adicionados', 'sodio', 'data_coleta', 'categoria'
+    "nome",
+    "url",
+    "porcao",
+    "calorias",
+    "carboidratos",
+    "proteinas",
+    "gorduras",
+    "gorduras_saturadas",
+    "gorduras_trans",
+    "fibras",
+    "acucares",
+    "acucares_adicionados",
+    "sodio",
+    "data_coleta",
+    "categoria",
 ]
 
 
-def load_product_urls(filepath: str = 'json/produtos_urls.json') -> Dict[str, List[str]]:
-    """
-    Carrega URLs de produtos do arquivo JSON.
-    
-    Args:
-        filepath: Caminho do arquivo JSON
-        
-    Returns:
-        Dict[str, List[str]]: Dicionário com categorias e URLs
-    """
+def load_product_urls(filepath: str = "json/produtos_urls.json") -> Dict[str, List[str]]:
+    """Load categorized product URLs exported by ``url_collector``."""
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
-        logger.info(f"URLs carregadas de {filepath}")
+        logger.info(f"Loaded URLs from {filepath}")
         return data
     except Exception as e:
-        logger.error(f"Erro ao carregar URLs: {e}")
+        logger.error(f"Unable to load URL index: {e}")
         raise
 
 
 def get_page(url: str) -> Optional[BeautifulSoup]:
-    """
-    Faz requisição HTTP e retorna o objeto BeautifulSoup.
-    
-    Args:
-        url: URL da página a ser requisitada
-        
-    Returns:
-        BeautifulSoup: Objeto soup da página ou None se houver erro
-    """
+    """GET a product page HTML and return Soup, swallowing transient HTTP errors."""
     try:
-        logger.info(f"Acessando: {url}")
+        logger.info(f"GET {url}")
         response = requests.get(url, headers=HEADERS, timeout=30)
         response.raise_for_status()
-        time.sleep(REQUEST_DELAY)  # Delay para não sobrecarregar o servidor
-        return BeautifulSoup(response.content, 'lxml')
+        time.sleep(REQUEST_DELAY)
+        return BeautifulSoup(response.content, "lxml")
     except requests.RequestException as e:
-        logger.error(f"Erro ao acessar {url}: {e}")
+        logger.error(f"HTTP error for {url}: {e}")
         return None
 
 
 def extract_product_name(soup: BeautifulSoup) -> str:
-    """
-    Extrai o nome do produto da página.
-    
-    Args:
-        soup: Objeto BeautifulSoup da página
-        
-    Returns:
-        str: Nome do produto
-    """
-    # Tenta diferentes seletores comuns para nome de produto
-    selectors = [
-        'h1.product_title',
-        'h1.product-title',
-        'h1',
-        '.product-title',
-        '.product_title'
-    ]
-    
-    for selector in selectors:
-        element = soup.select_one(selector)
-        if element:
-            return element.get_text(strip=True)
-    
-    return "Nome não encontrado"
+    """Best-effort product title from PDP markup."""
+    selectors = (
+        "h1.product_title",
+        "h1.product-title",
+        "h1",
+        ".product-title",
+        ".product_title",
+    )
+
+    for sel in selectors:
+        node = soup.select_one(sel)
+        if node:
+            return node.get_text(strip=True)
+
+    return "Name not found"
 
 
 def clean_numeric_value(value: str) -> float:
-    """
-    Limpa e converte valor numérico de string para float.
-    
-    Args:
-        value: Valor em string
-        
-    Returns:
-        float: Valor numérico ou 0 se inválido
-    """
-    if not value or value.strip() == '':
+    """Parse localized numeric nutrient strings → float; blanks become 0.0."""
+    if not value or value.strip() == "":
         return 0
-    
-    # Remove espaços e substitui vírgula por ponto
-    cleaned = value.strip().replace(',', '.')
-    
-    # Extrai apenas números e ponto decimal
-    match = re.search(r'[\d.]+', cleaned)
+
+    cleaned = value.strip().replace(",", ".")
+    match = re.search(r"[\d.]+", cleaned)
     if match:
         try:
             return float(match.group())
         except ValueError:
             return 0
-    
+
     return 0
 
 
-def extract_porcao(table) -> str:
+def extract_portion(table) -> str:
     """
-    Extrai porção de diferentes locais da tabela com suporte a múltiplos formatos.
-    Foca especificamente na estrutura padrão da Adaptogen.
-    
-    Args:
-        table: Elemento BeautifulSoup da tabela
-        
-    Returns:
-        str: Porção extraída ou string vazia se não encontrar
+    Extract serving/portions text tailored to Adaptogen PDP tables (`Porção:` lines).
+
+    Table copy remains Portuguese on the storefront; regex anchors must match PT wording.
     """
-    # Padrões regex específicos para a estrutura da Adaptogen
     patterns = [
-        r'Porção:\s*(\d+\s*g\s*\([^)]+\))',     # "Porção: 33 g (2 dosadores)"
-        r'Porção:\s*(\d+\s*g)',                  # "Porção: 25 g"
-        r'Porção:\s*(\d+\s*g\s*\(\d+\s*unidade[s]?\))',  # "Porção: 25 g (1 unidade)"
-        r'Porção:\s*(.+?)(?:\n|<|$)',            # "Porção: qualquer coisa"
-        r'Porção de\s+(.+?)(?:\n|<|$)',          # "Porção de 2 dosadores – 10g"
-        r'Porção\s+de\s+(.+?)(?:\n|<|$)',        # "Porção de 10g"
-        r'Porção\s+(.+?)(?:\n|<|$)',             # "Porção 10g"
+        r"Porção:\s*(\d+\s*g\s*\([^)]+\))",
+        r"Porção:\s*(\d+\s*g)",
+        r"Porção:\s*(\d+\s*g\s*\(\d+\s*unidade[s]?\))",
+        r"Porção:\s*(.+?)(?:\n|<|$)",
+        r"Porção de\s+(.+?)(?:\n|<|$)",
+        r"Porção\s+de\s+(.+?)(?:\n|<|$)",
+        r"Porção\s+(.+?)(?:\n|<|$)",
     ]
-    
-    # 1. Busca no thead - foca na estrutura padrão da Adaptogen
-    thead = table.find('thead')
+
+    thead = table.find("thead")
     if thead:
-        # Busca especificamente em células com colspan (cabeçalho principal)
-        th_colspan = thead.find('th', {'colspan': True})
-        if th_colspan:
-            # Primeiro tenta extrair de elementos <strong> ou <p> dentro do th
-            strong_elements = th_colspan.find_all(['strong', 'p'])
-            for element in strong_elements:
-                text = element.get_text()
+        colspan_th = thead.find("th", {"colspan": True})
+        if colspan_th:
+            for elem in colspan_th.find_all(["strong", "p"]):
+                text = elem.get_text()
                 for pattern in patterns:
-                    match = re.search(pattern, text, re.IGNORECASE)
-                    if match:
-                        porcao = match.group(1).strip()
-                        porcao = ' '.join(porcao.split())
-                        return porcao
-            
-            # Se não encontrou nos elementos internos, tenta o texto completo do th
-            text = th_colspan.get_text()
+                    m = re.search(pattern, text, re.IGNORECASE)
+                    if m:
+                        txt = " ".join(m.group(1).strip().split())
+                        return txt
+
+            text_full = colspan_th.get_text()
             for pattern in patterns:
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match:
-                    porcao = match.group(1).strip()
-                    porcao = ' '.join(porcao.split())
-                    return porcao
-        
-        # Fallback: busca em todas as células do thead
-        all_th = thead.find_all('th')
-        for th in all_th:
-            text = th.get_text()
+                m = re.search(pattern, text_full, re.IGNORECASE)
+                if m:
+                    return " ".join(m.group(1).strip().split())
+
+        for th in thead.find_all("th"):
+            txt = th.get_text()
             for pattern in patterns:
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match:
-                    porcao = match.group(1).strip()
-                    porcao = ' '.join(porcao.split())
-                    return porcao
-    
-    # 2. Busca na primeira linha do tbody (caso especial como Panic Pré-Treino)
-    tbody = table.find('tbody')
+                m = re.search(pattern, txt, re.IGNORECASE)
+                if m:
+                    return " ".join(m.group(1).strip().split())
+
+    tbody = table.find("tbody")
     if tbody:
-        first_row = tbody.find('tr')
-        if first_row:
-            cells = first_row.find_all(['td', 'th'])
-            for cell in cells:
+        row0 = tbody.find("tr")
+        if row0:
+            for cell in row0.find_all(["td", "th"]):
                 text = cell.get_text()
-                if 'porção' in text.lower():
-                    # Tenta os padrões regex
+                if "porção" in text.lower():
                     for pattern in patterns:
-                        match = re.search(pattern, text, re.IGNORECASE)
-                        if match:
-                            porcao = match.group(1).strip()
-                            porcao = ' '.join(porcao.split())
-                            return porcao
-                    
-                    # Se encontrou "porção" mas não matchou padrão específico,
-                    # tenta extrair a parte relevante
-                    if 'de' in text.lower():
-                        # Ex: "Porção de 2 dosadores – 10g"
-                        parts = text.split('de', 1)
-                        if len(parts) > 1:
-                            porcao = parts[1].strip()
-                            porcao = ' '.join(porcao.split())
-                            return porcao
-                    
-                    # Última tentativa: retorna o texto limpo removendo "Porção"
-                    porcao = text.replace('Porção', '').replace('porção', '').strip()
-                    porcao = ' '.join(porcao.split())
-                    if porcao:
-                        return porcao
-    
-    return ''
+                        m = re.search(pattern, text, re.IGNORECASE)
+                        if m:
+                            return " ".join(m.group(1).strip().split())
+
+                    if "de" in text.lower():
+                        chunks = text.split("de", 1)
+                        if len(chunks) > 1:
+                            return " ".join(chunks[1].strip().split())
+
+                    stripped = (
+                        text.replace("Porção", "")
+                        .replace("porção", "")
+                        .strip()
+                    )
+                    stripped = " ".join(stripped.split())
+                    if stripped:
+                        return stripped
+
+    return ""
 
 
 def parse_nutritional_table(soup: BeautifulSoup) -> Optional[Dict]:
     """
-    Extrai e processa a tabela nutricional.
-    
-    Args:
-        soup: Objeto BeautifulSoup da página
-        
-    Returns:
-        Dict: Dicionário com dados nutricionais ou None se não encontrar
+    Parse the PDP nutrition table housed under ``div.flow``.
+
+    Nutrient labels mirror Brazilian storefront wording; mapping keys intentionally stay Portuguese.
     """
-    # Localiza a div com a tabela
-    flow_div = soup.find('div', class_='flow')
+    flow_div = soup.find("div", class_="flow")
     if not flow_div:
-        logger.warning("Div 'flow' não encontrada")
+        logger.warning("Could not locate div.flow")
         return None
-    
-    table = flow_div.find('table')
+
+    table = flow_div.find("table")
     if not table:
-        logger.warning("Tabela não encontrada dentro da div 'flow'")
+        logger.warning("No nested <table> under div.flow")
         return None
-    
-    # Inicializa dados com valores padrão
+
     data = {
-        'porcao': '',
-        'calorias': 0,
-        'carboidratos': 0,
-        'proteinas': 0,
-        'gorduras': 0,
-        'gorduras_saturadas': 0,
-        'gorduras_trans': 0,
-        'fibras': 0,
-        'acucares': 0,
-        'acucares_adicionados': 0,
-        'sodio': 0
+        "porcao": "",
+        "calorias": 0,
+        "carboidratos": 0,
+        "proteinas": 0,
+        "gorduras": 0,
+        "gorduras_saturadas": 0,
+        "gorduras_trans": 0,
+        "fibras": 0,
+        "acucares": 0,
+        "acucares_adicionados": 0,
+        "sodio": 0,
     }
-    
-    # Extrai porção usando a nova função robusta
-    data['porcao'] = extract_porcao(table)
-    
-    # Mapeia nomes de nutrientes para chaves do dicionário
+
+    data["porcao"] = extract_portion(table)
+
     nutrient_mapping = {
-        'valor energético': 'calorias',
-        'carboidratos': 'carboidratos',
-        'proteínas': 'proteinas',
-        'gorduras totais': 'gorduras',
-        'gorduras saturadas': 'gorduras_saturadas',
-        'gorduras trans': 'gorduras_trans',  # Adicionado
-        'fibras alimentares': 'fibras',
-        'fibra alimentar': 'fibras',  # Variação singular
-        'açúcares totais': 'acucares',
-        'açucares totais': 'acucares',  # Variação sem acento
-        'açúcares adicionados': 'acucares_adicionados',  # Adicionado
-        'açucares adicionados': 'acucares_adicionados',  # Variação sem acento
-        'sódio': 'sodio'
+        "valor energético": "calorias",
+        "carboidratos": "carboidratos",
+        "proteínas": "proteinas",
+        "gorduras totais": "gorduras",
+        "gorduras saturadas": "gorduras_saturadas",
+        "gorduras trans": "gorduras_trans",
+        "fibras alimentares": "fibras",
+        "fibra alimentar": "fibras",
+        "açúcares totais": "acucares",
+        "açucares totais": "acucares",
+        "açúcares adicionados": "acucares_adicionados",
+        "açucares adicionados": "acucares_adicionados",
+        "sódio": "sodio",
     }
-    
-    # Extrai valores do tbody
-    tbody = table.find('tbody')
+
+    tbody = table.find("tbody")
     if tbody:
-        rows = tbody.find_all('tr')
-        for row in rows:
-            cells = row.find_all('td')
+        for row in tbody.find_all("tr"):
+            cells = row.find_all("td")
             if len(cells) >= 2:
                 nutrient_name = cells[0].get_text(strip=True).lower()
                 nutrient_value = cells[1].get_text(strip=True)
-                
-                # Verifica se o nutriente está no mapeamento
-                for key, mapped_key in nutrient_mapping.items():
-                    if key in nutrient_name:
-                        data[mapped_key] = clean_numeric_value(nutrient_value)
+
+                for key_sl, csv_key in nutrient_mapping.items():
+                    if key_sl in nutrient_name:
+                        data[csv_key] = clean_numeric_value(nutrient_value)
                         break
-    
+
     return data
 
 
 def scrape_product(url: str, categoria: str) -> Optional[Dict]:
-    """
-    Faz scraping de um produto individual.
-    
-    Args:
-        url: URL do produto
-        categoria: Categoria do produto
-        
-    Returns:
-        Dict: Dados do produto ou None se houver erro
-    """
+    """Scrape a single PDP into a flattened row dict aligned with CSV_COLUMNS."""
     try:
         soup = get_page(url)
         if not soup:
             return None
-        
-        # Extrai nome do produto
-        nome = extract_product_name(soup)
-        
-        # Extrai tabela nutricional
-        nutritional_data = parse_nutritional_table(soup)
-        if not nutritional_data:
-            logger.warning(f"Tabela nutricional não encontrada para: {nome} ({url})")
+
+        name = extract_product_name(soup)
+
+        nutritional = parse_nutritional_table(soup)
+        if not nutritional:
+            logger.warning(f"No nutrition table for «{name}» ({url})")
             return None
-        
-        # Monta dados completos do produto
-        product_data = {
-            'nome': nome,
-            'url': url,
-            'porcao': nutritional_data['porcao'],
-            'calorias': nutritional_data['calorias'],
-            'carboidratos': nutritional_data['carboidratos'],
-            'proteinas': nutritional_data['proteinas'],
-            'gorduras': nutritional_data['gorduras'],
-            'gorduras_saturadas': nutritional_data['gorduras_saturadas'],
-            'gorduras_trans': nutritional_data['gorduras_trans'],
-            'fibras': nutritional_data['fibras'],
-            'acucares': nutritional_data['acucares'],
-            'acucares_adicionados': nutritional_data['acucares_adicionados'],
-            'sodio': nutritional_data['sodio'],
-            'data_coleta': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'categoria': categoria
+
+        payload = {
+            "nome": name,
+            "url": url,
+            "porcao": nutritional["porcao"],
+            "calorias": nutritional["calorias"],
+            "carboidratos": nutritional["carboidratos"],
+            "proteinas": nutritional["proteinas"],
+            "gorduras": nutritional["gorduras"],
+            "gorduras_saturadas": nutritional["gorduras_saturadas"],
+            "gorduras_trans": nutritional["gorduras_trans"],
+            "fibras": nutritional["fibras"],
+            "acucares": nutritional["acucares"],
+            "acucares_adicionados": nutritional["acucares_adicionados"],
+            "sodio": nutritional["sodio"],
+            "data_coleta": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "categoria": categoria,
         }
-        
-        logger.info(f"✓ Produto coletado: {nome}")
-        return product_data
-        
+
+        logger.info(f"✓ scraped {name}")
+        return payload
+
     except Exception as e:
-        logger.error(f"Erro ao processar produto {url}: {e}")
+        logger.error(f"{url}: {e}")
         return None
 
 
-def save_to_csv(data: List[Dict], filepath: str) -> None:
-    """
-    Salva dados em arquivo CSV.
-    
-    Args:
-        data: Lista de dicionários com dados dos produtos
-        filepath: Caminho do arquivo CSV
-    """
+def save_to_csv(rows: List[Dict], filepath: str) -> None:
+    """Write UTF-8 CSV with header row pulled from CSV_COLUMNS."""
     try:
-        with open(filepath, 'w', encoding='utf-8', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
+        with open(filepath, "w", encoding="utf-8", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=CSV_COLUMNS)
             writer.writeheader()
-            writer.writerows(data)
-        logger.info(f"Dados salvos em {filepath}")
+            writer.writerows(rows)
+        logger.info(f"CSV written to {filepath}")
     except Exception as e:
-        logger.error(f"Erro ao salvar CSV: {e}")
+        logger.error(f"CSV write failed: {e}")
         raise
 
 
-def main():
-    """
-    Função principal que orquestra a coleta de dados nutricionais.
-    """
-    logger.info("Iniciando coleta de dados nutricionais...")
-    
-    # Carrega URLs dos produtos
+def main() -> None:
+    """Batch-scrape products referenced inside ``produtos_urls.json``."""
+    logger.info("Nutrition scrape starting...")
+
     try:
-        produtos_urls = load_product_urls()
-    except Exception as e:
-        logger.error(f"Não foi possível carregar URLs. Execute url_collector.py primeiro.")
+        by_category = load_product_urls()
+    except Exception:
+        logger.error("Aborting — run ``python url_collector.py`` (or CLI option 1) first.")
         return
-    
-    # Lista para armazenar todos os produtos
-    all_products = []
-    
-    # Estatísticas
-    total_urls = sum(len(urls) for urls in produtos_urls.values())
-    processed = 0
-    success = 0
-    failed = 0
-    
-    logger.info(f"\n{'='*60}")
-    logger.info(f"Total de produtos a processar: {total_urls}")
-    logger.info(f"{'='*60}\n")
-    
-    # Processa cada categoria
-    for categoria, urls in produtos_urls.items():
-        logger.info(f"\n{'='*60}")
-        logger.info(f"Processando categoria: {categoria.upper()}")
-        logger.info(f"Total de URLs: {len(urls)}")
-        logger.info(f"{'='*60}\n")
-        
-        for url in urls:
+
+    aggregated: List[Dict] = []
+    total_urls = sum(len(lst) for lst in by_category.values())
+    processed = success = failed = 0
+
+    logger.info("\n%s", "=" * 60)
+    logger.info("Products queued: %d", total_urls)
+    logger.info("%s\n", "=" * 60)
+
+    for category, urls in by_category.items():
+        logger.info("\n%s", "=" * 60)
+        logger.info("Category: %s", category.upper())
+        logger.info("URLs in bucket: %d", len(urls))
+        logger.info("%s\n", "=" * 60)
+
+        for u in urls:
             processed += 1
-            logger.info(f"[{processed}/{total_urls}] Processando...")
-            
-            product_data = scrape_product(url, categoria)
-            
-            if product_data:
-                all_products.append(product_data)
+            logger.info("[%d/%d]", processed, total_urls)
+
+            row = scrape_product(u, category)
+
+            if row:
+                aggregated.append(row)
                 success += 1
             else:
                 failed += 1
-    
-    # Salva resultados em CSV
-    if all_products:
-        output_path = "dados_extraidos/produtos_nutricionais.csv"
-        save_to_csv(all_products, output_path)
-    
-    # Estatísticas finais
-    logger.info(f"\n{'='*60}")
-    logger.info("RESUMO DA COLETA:")
-    logger.info(f"{'='*60}")
-    logger.info(f"Total processado: {processed}")
-    logger.info(f"Sucesso: {success}")
-    logger.info(f"Falhas: {failed}")
-    logger.info(f"Taxa de sucesso: {(success/processed*100):.1f}%")
-    logger.info(f"{'='*60}\n")
-    
-    logger.info("Coleta finalizada!")
+
+    if aggregated:
+        csv_path = "dados_extraidos/produtos_nutricionais.csv"
+        save_to_csv(aggregated, csv_path)
+
+    pct = (success / processed * 100) if processed else 0.0
+    logger.info("\n%s", "=" * 60)
+    logger.info("RUN SUMMARY")
+    logger.info("%s", "=" * 60)
+    logger.info("Processed: %d", processed)
+    logger.info("Success: %d", success)
+    logger.info("Failures: %d", failed)
+    logger.info("Success rate: %.1f%%", pct)
+    logger.info("%s\n", "=" * 60)
+    logger.info("Done.")
 
 
 if __name__ == "__main__":
     main()
-

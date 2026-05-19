@@ -1,12 +1,12 @@
-<!-- Repositório: https://github.com/sidnei-almeida/adaptogen_scraper -->
+<!-- Repository: https://github.com/sidnei-almeida/adaptogen_scraper -->
 <p align="center">
-  <img src="images/logo.png" alt="Adaptogen Scraper — cabeçalho da CLI" width="520" />
+  <img src="images/logo.png" alt="Adaptogen Scraper — CLI banner" width="520" />
 </p>
 
 <h1 align="center">adaptogen-scraper</h1>
 
 <p align="center">
-  <strong>CLI para coletar URLs de produtos em adaptogen.com.br e extrair tabelas nutricionais para JSON e CSV.</strong>
+  <strong>Terminal CLI to harvest Adaptogen storefront URLs (adaptogen.com.br) and scrape structured nutrition panels into JSON + CSV.</strong>
 </p>
 
 <p align="center">
@@ -17,123 +17,125 @@
 </p>
 
 <p align="center">
-  <a href="#visão-geral">Visão geral</a> ·
-  <a href="#galeria">Galeria</a> ·
-  <a href="#recursos">Recursos</a> ·
-  <a href="#requisitos">Requisitos</a> ·
-  <a href="#instalação--início-rápido">Início rápido</a> ·
-  <a href="#referência-da-cli">CLI</a> ·
-  <a href="#pipeline-de-dados">Dados</a> ·
-  <a href="#estrutura-do-projeto">Layout</a> ·
-  <a href="#solução-de-problemas">Troubleshooting</a> ·
-  <a href="#autor">Autor</a> ·
-  <a href="#licença">Licença</a>
+  <a href="#overview">Overview</a> ·
+  <a href="#gallery">Gallery</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#requirements">Requirements</a> ·
+  <a href="#installation--quick-start">Quick start</a> ·
+  <a href="#cli-reference">CLI</a> ·
+  <a href="#data-pipeline">Data</a> ·
+  <a href="#project-layout">Layout</a> ·
+  <a href="#troubleshooting">Troubleshooting</a> ·
+  <a href="#author">Author</a> ·
+  <a href="#license">License</a>
 </p>
 
 ---
 
-## Visão geral
+## Overview
 
-**adaptogen-scraper** automatiza dois passos: **descobrir links de páginas de produto** no e-commerce Adaptogen e **ler a tabela nutricional** exibida em cada ficha (`div.flow` → `table`), normalizando números e exportando um CSV único para análise.
+**adaptogen-scraper** automates a two-phase workflow: crawl **listing pages** back into product PDP links, then open each PDP and parse the **`div.flow` nutrition table**. Numbers are normalized, missing cells become `0`, and everything lands in CSV for spreadsheet analytics.
 
-| Etapa | Resultado |
-|--------|-----------|
-| **Coleta de URLs** | Gera [`json/produtos_urls.json`](json/produtos_urls.json) com listas por categoria (pré-treino, snacks, proteínas com paginação, creatinas). |
-| **Extração nutricional** | Percorre cada URL e grava [`dados_extraidos/produtos_nutricionais.csv`](dados_extraidos/produtos_nutricionais.csv) com porção, macros e metadados. |
-| **Interface** | Menu interativo em [`main.py`](main.py): fluxo guiado, listagem de arquivos gerados e limpeza segura dos dados locais. |
+| Stage | Output |
+|-------|--------|
+| **URL crawl** | [`json/produtos_urls.json`](json/produtos_urls.json) with arrays per storefront bucket (pre-workout `pre-treino`, snacks, paginated proteins, creatine `creatinas`). |
+| **Nutrition scrape** | [`dados_extraidos/produtos_nutricionais.csv`](dados_extraidos/produtos_nutricionais.csv) with servings, macros, timestamp, Brazilian category slug. |
+| **Operator UX** | English [`main.py`](main.py) TUI wraps both stages, inventories artifacts, offers destructive cleanup behind `CONFIRM`. |
 
-O scraper usa **User-Agent e cabeçalhos de navegador** e **`REQUEST_DELAY` de 2 s** entre requisições (`url_collector.py` / `nutritional_scraper.py`) para reduzir carga no servidor. Este repositório é **somente uso pessoal e educativo** — respeite os termos do site e a legislação aplicável ao fazer scraping.
+Scripts send **desktop-style headers** and honor a **2 s stall** (`REQUEST_DELAY` in [`url_collector.py`](url_collector.py) / [`nutritional_scraper.py`](nutritional_scraper.py)). This codebase is intentionally **tutorial / hobby** material—follow the site's terms of service plus any applicable scraping law before running it broadly.
 
 ---
 
-## Galeria
+## Gallery
 
-### Banner da CLI
-
-<p align="center">
-  <img src="images/logo.png" alt="Banner colorido Adaptogen Scraper v1.0 no terminal" width="780" />
-</p>
+### CLI banner (`images/logo.png`)
 
 <p align="center">
-  <em><strong>Figura 1.</strong> Cabeçalho do programa: versão, escopo e atalhos das operações principais.</em>
-</p>
-
-### Menu completo
-
-<p align="center">
-  <img src="images/software.png" alt="Adaptogen Scraper: menu principal e opções 1–7 no terminal" width="780" />
+  <img src="images/logo.png" alt="Adaptogen Scraper ASCII banner screenshot" width="780" />
 </p>
 
 <p align="center">
-  <em><strong>Figura 2.</strong> Menu interativo: coleta, extração, fluxo completo, arquivos, limpar dados, sobre e sair.</em>
+  <em><strong>Figure 1.</strong> Title card showing version headline and headline capabilities.</em>
 </p>
 
----
+### Full interactive menu (`images/software.png`)
 
-## Recursos
+<p align="center">
+  <img src="images/software.png" alt="Adaptogen Scraper numbered menu screenshot" width="780" />
+</p>
 
-| Área | Descrição |
-|------|-----------|
-| **CLI colorida** | Banner, menu numerado e confirmações para operações lentas ou destrutivas (limpar dados exige digitar `CONFIRMAR`). |
-| **Paginação** | Categoria **proteínas** percorre `?sf_paged=` até aparecer «Nenhum produto encontrado». |
-| **Parsing da tabela** | Foco na estrutura WooCommerce da Adaptogen; mapeamento de nutrientes e extração resiliente da **porção** no `<thead>`/primeira linha. |
-| **Saídas** | JSON por categorias; CSV único com timestamp de coleta (`data_coleta`) e `categoria`. |
-| **Scripts soltos** | [`url_collector.py`](url_collector.py) e [`nutritional_scraper.py`](nutritional_scraper.py) podem rodar direto no terminal ou serem disparados pelo `main.py`. |
-| **Template opcional** | [`template_main.py`](template_main.py) é um modelo reutilizável de CLI no mesmo estilo visual. |
+<p align="center">
+  <em><strong>Figure 2.</strong> Root menu spanning collect / extract / full run / bookkeeping options.</em>
+</p>
 
----
-
-## Requisitos
-
-| Componente | Observações |
-|------------|-------------|
-| **Python** | 3.10 ou superior recomendável (compatível em geral com 3.x recente). |
-| **Pacotes** | `requests`, `beautifulsoup4`, `lxml` — pin mínimos em [`requirements.txt`](requirements.txt). |
-| **Rede** | Acesso HTTPS a **adaptogen.com.br**; timeout de 30 s por página. |
-
-> **Observação:** mudanças no HTML/CSS do tema ou na URL de categorias podem exigir ajustes nos seletores em [`url_collector.py`](url_collector.py) e [`nutritional_scraper.py`](nutritional_scraper.py).
+> **Note:** If you refresh the screenshots, re-record after switching the CLI to English so marketing assets mirror the codebase.
 
 ---
 
-## Instalação & início rápido
+## Features
+
+| Area | Details |
+|------|---------|
+| **Colored CLI** | [`main.py`](main.py) centralizes confirmations, pacing bars, ASCII panels. |
+| **Pagination** | Proteins scrape walks `sf_paged` until WooCommerce emits the localized empty headline `Nenhum produto encontrado`. |
+| **Robust PDP parsing** | Regex + XPath-style BeautifulSoup probing for servings text & Portuguese nutrient captions that match storefront copy. |
+| **Dual ergonomics** | Drive everything through the CLI **or** run [`url_collector.py`](url_collector.py) + [`nutritional_scraper.py`](nutritional_scraper.py) headlessly. |
+| **Template artifact** | [`template_main.py`](template_main.py) clones the stylistic scaffolding for unrelated CLIs. |
+
+---
+
+## Requirements
+
+| Component | Notes |
+|-----------|-------|
+| **Python** | 3.10+ recommended (stdlib + typing friendly). |
+| **Packages** | `requests`, `beautifulsoup4`, `lxml` pinned under [`requirements.txt`](requirements.txt). |
+| **Network** | Reliable HTTPS egress to https://adaptogen.com.br |
+
+> **Operational caveat:** storefront HTML drift means selectors occasionally need patching—coordinate issues with reproducible PDP URLs + HTML excerpts.
+
+---
+
+## Installation & quick start
 
 ```bash
 git clone https://github.com/sidnei-almeida/adaptogen_scraper.git
 cd adaptogen_scraper
 
 python -m venv venv
-source venv/bin/activate   # Linux/macOS
+source venv/bin/activate  # Linux / macOS
+# .\venv\Scripts\activate on Windows PowerShell
 
 pip install -r requirements.txt
 
 python main.py
 ```
 
-Para um único ciclo ponta-a-ponta, use **opção 3 — Executar Fluxo Completo** (primeiro URLs, depois nutricional).
+For a turnkey run, choose **Option 3 — Full pipeline**.
 
 ---
 
-## Referência da CLI
+## CLI reference
 
-### Menu interativo (recomendado)
+### Interactive entrypoint
 
 ```bash
 python main.py
 ```
 
-| Opção | Função |
-|-------|--------|
-| **1** | Coleta de URLs → `json/produtos_urls.json` |
-| **2** | Extração nutricional (requer JSON da etapa 1) → CSV |
-| **3** | Fluxo completo: 1 seguido de 2 |
-| **4** | Lista JSONs em `json/` e CSVs em `dados_extraidos/` |
-| **5** | Remove arquivos gerados após confirmar `CONFIRMAR` |
-| **6** | Texto “Sobre” com estatísticas e stack |
-| **7** | Sair |
+| Hotkey | Behavior |
+|--------|----------|
+| **1** | Crawl storefront categories → populate `json/produtos_urls.json` |
+| **2** | Read each stored URL → `dados_extraidos/produtos_nutricionais.csv` |
+| **3** | Chain **1** then **2** |
+| **4** | Summarize timestamps + weights for artifacts |
+| **5** | Erase JSON / CSV payloads after typing **`CONFIRM`** |
+| **6** | Credits + stack rundown |
+| **7** | Exit |
 
-### Sem menu (automático / cron)
+### Scripted / cron usage
 
-Mesma ordem que a opção **3**:
+Equivalent to Menu **3**:
 
 ```bash
 python url_collector.py
@@ -142,90 +144,91 @@ python nutritional_scraper.py
 
 ---
 
-## Pipeline de dados
+## Data pipeline
 
-### JSON (`json/produtos_urls.json`)
+### URL index (`json/produtos_urls.json`)
 
-Estrutura: chaves das categorias e listas de URLs absolutas:
+Portuguese storefront keys intentionally mirror Adaptogen taxonomy:
 
 ```json
 {
-  "pre-treino": ["https://…"],
-  "snacks": ["https://…"],
-  "proteinas": ["https://…"],
-  "creatinas": ["https://…"]
+  "pre-treino": ["https://..."],
+  "snacks": ["https://..."],
+  "proteinas": ["https://..."],
+  "creatinas": ["https://..."]
 }
 ```
 
-### CSV (`dados_extraidos/produtos_nutricionais.csv`)
+### Nutrition CSV (`dados_extraidos/produtos_nutricionais.csv`)
 
-Colunas exportadas pelo [`nutritional_scraper.py`](nutritional_scraper.py):
+Columns originate from [`nutritional_scraper.CSV_COLUMNS`](nutritional_scraper.py):
 
-| Coluna | Conteúdo |
-|--------|----------|
-| `nome`, `url` | Título na página (`h1`/seletores de produto) e link visitado |
-| `porcao` | Texto da porção (ex.: dose em g/unidade) quando detectável |
-| `calorias` … `sodio` | Valores numéricos; ausentes são normalizados para **0** |
-| `data_coleta` | Data e hora no momento da extração da linha |
-| `categoria` | Chave herdada do JSON (`pre-treino`, `snacks`, etc.) |
+| Column | Meaning |
+|--------|---------|
+| `nome`, `url` | Title pulled from PDP + canonical link |
+| `porcao` | Localized servings string when detected |
+| `calorias` … `sodio` | Float metrics; blanks coerced to zero |
+| `data_coleta` | ISO-ish timestamp stamped per row scrape |
+| `categoria` | Source bucket reused from JSON key |
 
 ---
 
-## Estrutura do projeto
+## Project layout
 
 ```
 .
-├── main.py                   # CLI interativa (ponto de entrada principal)
-├── url_collector.py          # Coleta de URLs por categoria → JSON
-├── nutritional_scraper.py    # Extrai tabelas → CSV
-├── template_main.py          # Template de CLI (“esqueleto” reaproveitável)
-├── json/                     # produtos_urls.json (criado ao rodar coleta)
-├── dados_extraidos/          # produtos_nutricionais.csv (criado na extração)
+├── main.py                   # Interactive English CLI
+├── url_collector.py          # Listing → JSON crawler
+├── nutritional_scraper.py    # PDP → CSV scraper
+├── template_main.py          # Reusable menu skeleton
+├── json/
+│   └── produtos_urls.json    # Produced by crawler
+├── dados_extraidos/
+│   └── produtos_nutricionais.csv  # Produced by PDP pass
 ├── images/
-│   ├── logo.png              # Hero / screenshot do banner da CLI
-│   └── software.png          # Captura do menu completo
+│   ├── logo.png             # Banner capture
+│   └── software.png         # Whole-menu screenshot
 ├── requirements.txt
 └── README.md
 ```
 
-Pastas `json/` e `dados_extraidos/` podem estar vazias ou ausentes até a primeira execução — o próprio fluxo os utiliza quando grava os arquivos.
+Artifacts directories may be absent until the first successful run—the writers create files as paths resolve.
 
 ---
 
-## Solução de problemas
+## Troubleshooting
 
-| Sintoma | O que verificar |
-|---------|-------------------|
-| `json/produtos_urls.json não encontrado` na opção 2 | Rode a opção **1** ou `python url_collector.py` antes da extração. |
-| Lista vazia de URLs em alguma categoria | O site pode ter mudado classes (`woocommerce-LoopProduct-link`) ou rotas; inspecionar HTML atual. |
-| «Tabela nutricional não encontrada» nos logs | A ficha pode não usar `div.flow` + `table` como esperado; ajustar `parse_nutritional_table`. |
-| Lentidão / bloqueios HTTP | Mantenha o delay entre requisições; conferir firewall, TLS e se o servidor retorna `429`/`403`. |
-| Produtos repetidos ou faltantes em proteínas | O coletor remove duplicatas no fim (`set`); páginas vazias interrompem a paginação. |
+| Symptom | Checks |
+|---------|--------|
+| Option **2** can't find URLs | Confirm **1** or `url_collector.py` finished; verify `json/produtos_urls.json`. |
+| Zero URLs inside a bucket | Inspect HTML for WooCommerce markup drift (`woocommerce-LoopProduct-link` fallbacks still fail). |
+| Logs show missing nutrition panels | PDP may relocate markup outside `div.flow`; adjust [`parse_nutritional_table`](nutritional_scraper.py). |
+| HTTP slowdowns | Keep delay; investigate `429`, TLS inspection, corp proxies. |
 
 ---
 
-## Autor
+## Author
 
 | | |
 | --- | --- |
-| **Mantenedor** | [Sidnei Almeida](https://github.com/sidnei-almeida) ([@sidnei-almeida](https://github.com/sidnei-almeida)) |
-| **Repositório** | [github.com/sidnei-almeida/adaptogen_scraper](https://github.com/sidnei-almeida/adaptogen_scraper) |
+| **Maintainer** | [Sidnei Almeida](https://github.com/sidnei-almeida) ([@sidnei-almeida](https://github.com/sidnei-almeida)) |
+| **Repository** | [github.com/sidnei-almeida/adaptogen_scraper](https://github.com/sidnei-almeida/adaptogen_scraper) |
 | **LinkedIn** | [linkedin.com/in/saaelmeida93](https://www.linkedin.com/in/saaelmeida93/) |
 
 ---
 
-## Contribuindo
+## Contributing
 
-Issues e PRs são bem-vindos. Ao reportar falhas de scraping, inclua **trecho da página/HTML** ou **mensagem do log**, além das versões de **Python**, `beautifulsoup4` e `lxml`.
+Issues & PRs welcome—please attach PDP HTML excerpts, storefront headlines, failing URLs, interpreter version, plus `beautifulsoup4`/`lxml` releases when reporting parser drift.
 
 ---
 
-## Licença
+## License
 
-Projeto disponível como **código aberto para uso pessoal e educacional**. Não há arquivo `LICENSE` no repositório no momento — se precisar de uma licença explícita (por exemplo MIT), adicione o ficheiro e atualize esta secção.
+Distributed as **community / educational OSS**. There is no packaged `LICENSE` file yet—add one (MIT, etc.) whenever you formalize redistribution terms.
 
 ---
 
 <p align="center">
-  <sub>Este projeto não é afiliado, endossado ou mantido pela Adaptogen ou por qualquer marca associada aos produtos raspados.</sub>
+  <sub>Unaffiliated hobby project—not endorsed by Adaptogen®, WooCommerce®, or scraped trademarks.</sub>
 </p>

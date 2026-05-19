@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 """
-🧪 ADAPTOGEN SCRAPER - Interface CLI
-====================================
-Interface profissional para coleta e extração de dados nutricionais da Adaptogen
+Adaptogen Scraper — terminal CLI
 
-Desenvolvido por: Sidnei Almeida (github.com/sidnei-almeida)
+Interactive interface for collecting and extracting Adaptogen nutritional data.
+
+Author: Sidnei Almeida (github.com/sidnei-almeida)
 """
 
 import os
@@ -14,429 +14,403 @@ import sys
 import time
 import glob
 from datetime import datetime
-from typing import List, Dict, Optional
-
 # ============================================================================
-# 🎨 SISTEMA DE CORES ANSI PARA TERMINAL
+# ANSI COLORS FOR TERMINAL OUTPUT
 # ============================================================================
-class Cores:
+class Colors:
     RESET = '\033[0m'
     BOLD = '\033[1m'
-    VERDE = '\033[92m'
-    AZUL = '\033[94m'
-    AMARELO = '\033[93m'
-    VERMELHO = '\033[91m'
-    CIANO = '\033[96m'
+    GREEN = '\033[92m'
+    BLUE = '\033[94m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
     MAGENTA = '\033[95m'
-    BRANCO = '\033[97m'
+    WHITE = '\033[97m'
 
 # ============================================================================
-# 🛠️ FUNÇÕES UTILITÁRIAS
+# UTILITIES
 # ============================================================================
-def limpar_terminal():
-    """Limpa o terminal"""
+def clear_screen():
+    """Clear the terminal."""
     os.system('clear' if os.name == 'posix' else 'cls')
 
-def mostrar_banner():
-    """Exibe o banner principal do programa"""
+def print_banner():
+    """Print the application banner."""
     banner = f"""
-{Cores.CIANO}{Cores.BOLD}
+{Colors.CYAN}{Colors.BOLD}
 ╔══════════════════════════════════════════════════════════════╗
-║              🧪 ADAPTOGEN SCRAPER - v1.0                     ║
+║              Adaptogen Scraper — v1.0                        ║
 ║                                                              ║
-║        Extrator de Dados Nutricionais da Adaptogen          ║
+║        Nutritional data extraction from Adaptogen            ║
 ║                                                              ║
-║  📊 Coleta de URLs de Produtos                               ║
-║  🎯 Extração de Tabelas Nutricionais                         ║
-║  📝 Exportação para JSON e CSV                               ║
+║  Product URL collection                                       ║
+║  Nutritional facts table parsing                             ║
+║  Export to JSON & CSV                                         ║
 ╚══════════════════════════════════════════════════════════════╝
-{Cores.RESET}"""
+{Colors.RESET}"""
     print(banner)
 
-def mostrar_barra_progresso(texto: str, duracao: float = 2.0):
-    """Exibe uma barra de progresso animada"""
-    print(f"\n{Cores.AMARELO}⏳ {texto}...{Cores.RESET}")
-    barra_tamanho = 40
-    for i in range(barra_tamanho + 1):
-        progresso = i / barra_tamanho
-        barra = "█" * i + "░" * (barra_tamanho - i)
-        porcentagem = int(progresso * 100)
-        print(f"\r{Cores.VERDE}[{barra}] {porcentagem}%{Cores.RESET}", end="", flush=True)
-        time.sleep(duracao / barra_tamanho)
+def print_progress_bar(message: str, duration_sec: float = 2.0):
+    """Display an animated terminal progress bar."""
+    print(f"\n{Colors.YELLOW}Waiting — {message}...{Colors.RESET}")
+    bar_len = 40
+    for i in range(bar_len + 1):
+        progress = i / bar_len
+        bar = "█" * i + "░" * (bar_len - i)
+        pct = int(progress * 100)
+        print(f"\r{Colors.GREEN}[{bar}] {pct}%{Colors.RESET}", end="", flush=True)
+        time.sleep(duration_sec / bar_len)
     print()
 
-def mostrar_menu():
-    """Exibe o menu principal"""
+def print_main_menu():
+    """Print the main menu."""
     menu = f"""
-{Cores.AZUL}{Cores.BOLD}═══════════════════ MENU PRINCIPAL ═══════════════════{Cores.RESET}
+{Colors.BLUE}{Colors.BOLD}══════════════════ MAIN MENU ══════════════════{Colors.RESET}
 
-{Cores.VERDE}🚀 OPERAÇÕES PRINCIPAIS:{Cores.RESET}
-  {Cores.AMARELO}1.{Cores.RESET} 🔗 {Cores.BRANCO}Coletar URLs{Cores.RESET} - Coleta URLs de produtos
-  {Cores.AMARELO}2.{Cores.RESET} 📊 {Cores.BRANCO}Extrair Tabelas Nutricionais{Cores.RESET} - Extrai dados nutricionais
-  {Cores.AMARELO}3.{Cores.RESET} 🚀 {Cores.BRANCO}Executar Fluxo Completo{Cores.RESET} - Coleta + Extração
+{Colors.GREEN}Primary actions:{Colors.RESET}
+  {Colors.YELLOW}1.{Colors.RESET} Collect product URLs — all categories
+  {Colors.YELLOW}2.{Colors.RESET} Extract nutritional tables — per product pages
+  {Colors.YELLOW}3.{Colors.RESET} Full pipeline — collection + extraction
 
-{Cores.VERDE}📁 GERENCIAR DADOS:{Cores.RESET}
-  {Cores.AMARELO}4.{Cores.RESET} 📋 {Cores.BRANCO}Ver Arquivos{Cores.RESET} - Lista arquivos gerados
-  {Cores.AMARELO}5.{Cores.RESET} 🗑️  {Cores.BRANCO}Limpar Dados{Cores.RESET} - Remove arquivos antigos
+{Colors.GREEN}Data management:{Colors.RESET}
+  {Colors.YELLOW}4.{Colors.RESET} List generated files — JSON & CSV artifacts
+  {Colors.YELLOW}5.{Colors.RESET} Delete data files — clears json/ and dados_extraidos/
 
-{Cores.VERDE}ℹ️  INFORMAÇÕES:{Cores.RESET}
-  {Cores.AMARELO}6.{Cores.RESET} 📖 {Cores.BRANCO}Sobre o Programa{Cores.RESET} - Informações e estatísticas
-  {Cores.AMARELO}7.{Cores.RESET} ❌ {Cores.BRANCO}Sair{Cores.RESET} - Encerrar programa
+{Colors.GREEN}Info:{Colors.RESET}
+  {Colors.YELLOW}6.{Colors.RESET} About — version, tech stack, output layout
+  {Colors.YELLOW}7.{Colors.RESET} Quit
 
-{Cores.AZUL}══════════════════════════════════════════════════════{Cores.RESET}
+{Colors.BLUE}══════════════════════════════════════════════════════════{Colors.RESET}
 """
     print(menu)
 
-def obter_escolha() -> str:
-    """Obtém a escolha do usuário"""
+def prompt_choice() -> str:
+    """Read user's menu selection."""
     try:
-        escolha = input(f"{Cores.MAGENTA}👉 Digite sua opção (1-7): {Cores.RESET}").strip()
-        return escolha
+        choice = input(f"{Colors.MAGENTA}Enter option (1-7): {Colors.RESET}").strip()
+        return choice
     except KeyboardInterrupt:
-        print(f"\n\n{Cores.AMARELO}⚠️  Programa interrompido pelo usuário{Cores.RESET}")
+        print(f"\n\n{Colors.YELLOW}Interrupted.{Colors.RESET}")
         sys.exit(0)
 
 # ============================================================================
-# 🎯 FUNÇÕES ESPECÍFICAS DO ADAPTOGEN SCRAPER
+# Adaptogen scraper workflows
 # ============================================================================
 
-def coletar_urls():
-    """Executa a coleta de URLs de produtos"""
-    print(f"\n{Cores.CIANO}{Cores.BOLD}🔗 COLETAR URLs DE PRODUTOS{Cores.RESET}")
-    print(f"{Cores.AZUL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Cores.RESET}")
+def collect_urls():
+    """Run URL collection."""
+    print(f"\n{Colors.CYAN}{Colors.BOLD}COLLECT PRODUCT URLS{Colors.RESET}")
+    print(f"{Colors.BLUE}{'-' * 60}{Colors.RESET}")
     
-    print(f"\n{Cores.VERDE}✅ Categorias a serem coletadas:{Cores.RESET}")
-    print(f"   📊 Pré-treinos: {Cores.AMARELO}https://adaptogen.com.br/pre-treino{Cores.RESET}")
-    print(f"   🍫 Snacks: {Cores.AMARELO}https://adaptogen.com.br/proteinas/snacks-proteicos/{Cores.RESET}")
-    print(f"   💪 Proteínas: {Cores.AMARELO}https://adaptogen.com.br/proteinas/ (com paginação){Cores.RESET}")
-    print(f"   ⚡ Creatinas: {Cores.AMARELO}https://adaptogen.com.br/creatina/{Cores.RESET}")
+    print(f"\n{Colors.GREEN}Categories:{Colors.RESET}")
+    print(f"   Pre-workout: {Colors.YELLOW}https://adaptogen.com.br/pre-treino{Colors.RESET}")
+    print(f"   Protein snacks: {Colors.YELLOW}https://adaptogen.com.br/proteinas/snacks-proteicos/{Colors.RESET}")
+    print(f"   Proteins (paginated): {Colors.YELLOW}https://adaptogen.com.br/proteinas/{Colors.RESET}")
+    print(f"   Creatine: {Colors.YELLOW}https://adaptogen.com.br/creatina/{Colors.RESET}")
     
-    print(f"\n{Cores.VERDE}📁 Saída:{Cores.RESET} {Cores.AMARELO}json/produtos_urls.json{Cores.RESET}")
+    print(f"\n{Colors.GREEN}Output:{Colors.RESET} {Colors.YELLOW}json/produtos_urls.json{Colors.RESET}")
     
-    confirmar = input(f"\n{Cores.MAGENTA}🤔 Continuar com a coleta? (s/N): {Cores.RESET}").lower()
+    reply = input(f"\n{Colors.MAGENTA}Start collection? (y/N): {Colors.RESET}").lower()
     
-    if confirmar in ['s', 'sim', 'y', 'yes']:
+    if reply in {"y", "yes", "s", "sim"}:
         try:
-            mostrar_barra_progresso("Iniciando coleta de URLs", 1.5)
+            print_progress_bar("Starting URL crawl", 1.5)
             
-            # Importa e executa o url_collector
-            print(f"\n{Cores.VERDE}🚀 Executando coleta...{Cores.RESET}\n")
-            print(f"{Cores.AZUL}{'='*60}{Cores.RESET}")
+            print(f"\n{Colors.GREEN}Running...{Colors.RESET}\n")
+            print(f"{Colors.BLUE}{'=' * 60}{Colors.RESET}")
             
             import url_collector
             url_collector.main()
             
-            print(f"{Cores.AZUL}{'='*60}{Cores.RESET}")
-            print(f"\n{Cores.VERDE}✅ Coleta de URLs concluída com sucesso!{Cores.RESET}")
+            print(f"{Colors.BLUE}{'=' * 60}{Colors.RESET}")
+            print(f"\n{Colors.GREEN}URL collection finished.{Colors.RESET}")
             
         except Exception as e:
-            print(f"\n{Cores.VERMELHO}❌ Erro durante coleta: {e}{Cores.RESET}")
+            print(f"\n{Colors.RED}Error during collection: {e}{Colors.RESET}")
     else:
-        print(f"{Cores.AMARELO}⏭️  Operação cancelada{Cores.RESET}")
+        print(f"{Colors.YELLOW}Canceled.{Colors.RESET}")
 
-def extrair_dados_nutricionais():
-    """Executa a extração de dados nutricionais"""
-    print(f"\n{Cores.CIANO}{Cores.BOLD}📊 EXTRAIR TABELAS NUTRICIONAIS{Cores.RESET}")
-    print(f"{Cores.AZUL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Cores.RESET}")
+def extract_nutrition():
+    """Run nutritional scraping."""
+    print(f"\n{Colors.CYAN}{Colors.BOLD}EXTRACT NUTRITIONAL TABLES{Colors.RESET}")
+    print(f"{Colors.BLUE}{'-' * 60}{Colors.RESET}")
     
-    # Verifica se o arquivo de URLs existe
-    if not os.path.exists('json/produtos_urls.json'):
-        print(f"\n{Cores.VERMELHO}❌ ERRO: Arquivo json/produtos_urls.json não encontrado!{Cores.RESET}")
-        print(f"{Cores.AMARELO}💡 Execute primeiro a opção 1 (Coletar URLs){Cores.RESET}")
+    if not os.path.exists("json/produtos_urls.json"):
+        print(f"\n{Colors.RED}Missing json/produtos_urls.json.{Colors.RESET}")
+        print(f"{Colors.YELLOW}Run option 1 (Collect URLs) first.{Colors.RESET}")
         return
     
-    print(f"\n{Cores.AMARELO}⚠️  ATENÇÃO:{Cores.RESET}")
-    print(f"   • Esta operação pode demorar {Cores.VERMELHO}vários minutos{Cores.RESET}")
-    print(f"   • Cada produto será acessado individualmente")
-    print(f"   • Um delay de 2 segundos é aplicado entre requisições")
+    print(f"\n{Colors.YELLOW}Note:{Colors.RESET}")
+    print(f"   This may take {Colors.RED}several minutes{Colors.RESET}.")
+    print(f"   Each product page is fetched individually.")
+    print(f"   A 2-second delay is applied between HTTP requests.")
     
-    print(f"\n{Cores.VERDE}📁 Entrada:{Cores.RESET} {Cores.AMARELO}json/produtos_urls.json{Cores.RESET}")
-    print(f"{Cores.VERDE}📁 Saída:{Cores.RESET} {Cores.AMARELO}dados_extraidos/produtos_nutricionais.csv{Cores.RESET}")
+    print(f"\n{Colors.GREEN}Input:{Colors.RESET} {Colors.YELLOW}json/produtos_urls.json{Colors.RESET}")
+    print(f"{Colors.GREEN}Output:{Colors.RESET} {Colors.YELLOW}dados_extraidos/produtos_nutricionais.csv{Colors.RESET}")
     
-    confirmar = input(f"\n{Cores.MAGENTA}🤔 Continuar com a extração? (s/N): {Cores.RESET}").lower()
+    reply = input(f"\n{Colors.MAGENTA}Start extraction? (y/N): {Colors.RESET}").lower()
     
-    if confirmar in ['s', 'sim', 'y', 'yes']:
+    if reply in {"y", "yes", "s", "sim"}:
         try:
-            mostrar_barra_progresso("Preparando extração de dados", 1.5)
+            print_progress_bar("Preparing extraction", 1.5)
             
-            # Importa e executa o nutritional_scraper
-            print(f"\n{Cores.VERDE}🚀 Executando extração...{Cores.RESET}\n")
-            print(f"{Cores.AZUL}{'='*60}{Cores.RESET}")
+            print(f"\n{Colors.GREEN}Running...{Colors.RESET}\n")
+            print(f"{Colors.BLUE}{'=' * 60}{Colors.RESET}")
             
             import nutritional_scraper
             nutritional_scraper.main()
             
-            print(f"{Cores.AZUL}{'='*60}{Cores.RESET}")
-            print(f"\n{Cores.VERDE}✅ Extração de dados concluída!{Cores.RESET}")
+            print(f"{Colors.BLUE}{'=' * 60}{Colors.RESET}")
+            print(f"\n{Colors.GREEN}Extraction finished.{Colors.RESET}")
             
         except Exception as e:
-            print(f"\n{Cores.VERMELHO}❌ Erro durante extração: {e}{Cores.RESET}")
+            print(f"\n{Colors.RED}Error during extraction: {e}{Colors.RESET}")
     else:
-        print(f"{Cores.AMARELO}⏭️  Operação cancelada{Cores.RESET}")
+        print(f"{Colors.YELLOW}Canceled.{Colors.RESET}")
 
-def executar_fluxo_completo():
-    """Executa o fluxo completo: coleta + extração"""
-    print(f"\n{Cores.CIANO}{Cores.BOLD}🚀 EXECUTAR FLUXO COMPLETO{Cores.RESET}")
-    print(f"{Cores.AZUL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Cores.RESET}")
+def run_full_pipeline():
+    """Run URL collection followed by nutritional extraction."""
+    print(f"\n{Colors.CYAN}{Colors.BOLD}FULL PIPELINE{Colors.RESET}")
+    print(f"{Colors.BLUE}{'-' * 60}{Colors.RESET}")
     
-    print(f"\n{Cores.VERDE}📋 Etapas do fluxo:{Cores.RESET}")
-    print(f"   1️⃣  Coletar URLs de produtos")
-    print(f"   2️⃣  Extrair tabelas nutricionais")
+    print(f"\n{Colors.GREEN}Steps:{Colors.RESET}")
+    print(f"   1) Collect product URLs")
+    print(f"   2) Extract nutritional facts")
     
-    print(f"\n{Cores.AMARELO}⚠️  Este processo pode demorar bastante tempo!{Cores.RESET}")
+    print(f"\n{Colors.YELLOW}This process can take a long time.{Colors.RESET}")
     
-    confirmar = input(f"\n{Cores.MAGENTA}🤔 Executar fluxo completo? (s/N): {Cores.RESET}").lower()
+    reply = input(f"\n{Colors.MAGENTA}Run full pipeline? (y/N): {Colors.RESET}").lower()
     
-    if confirmar in ['s', 'sim', 'y', 'yes']:
+    if reply in {"y", "yes", "s", "sim"}:
         try:
-            inicio = time.time()
+            start = time.time()
             
-            # Etapa 1: Coletar URLs
-            print(f"\n{Cores.CIANO}{'='*60}{Cores.RESET}")
-            print(f"{Cores.BOLD}ETAPA 1/2: COLETA DE URLs{Cores.RESET}")
-            print(f"{Cores.CIANO}{'='*60}{Cores.RESET}\n")
+            print(f"\n{Colors.CYAN}{'=' * 60}{Colors.RESET}")
+            print(f"{Colors.BOLD}STEP 1 / 2 — URL COLLECTION{Colors.RESET}")
+            print(f"{Colors.CYAN}{'=' * 60}{Colors.RESET}\n")
             
             import url_collector
             url_collector.main()
             
-            print(f"\n{Cores.VERDE}✅ Etapa 1 concluída!{Cores.RESET}")
+            print(f"\n{Colors.GREEN}Step 1 complete.{Colors.RESET}")
             time.sleep(2)
             
-            # Etapa 2: Extrair dados
-            print(f"\n{Cores.CIANO}{'='*60}{Cores.RESET}")
-            print(f"{Cores.BOLD}ETAPA 2/2: EXTRAÇÃO DE DADOS NUTRICIONAIS{Cores.RESET}")
-            print(f"{Cores.CIANO}{'='*60}{Cores.RESET}\n")
+            print(f"\n{Colors.CYAN}{'=' * 60}{Colors.RESET}")
+            print(f"{Colors.BOLD}STEP 2 / 2 — NUTRITIONAL EXTRACTION{Colors.RESET}")
+            print(f"{Colors.CYAN}{'=' * 60}{Colors.RESET}\n")
             
             import nutritional_scraper
             nutritional_scraper.main()
             
-            fim = time.time()
-            tempo_total = fim - inicio
+            elapsed = time.time() - start
             
-            # Resumo final
-            print(f"\n{Cores.VERDE}{Cores.BOLD}{'='*60}{Cores.RESET}")
-            print(f"{Cores.VERDE}{Cores.BOLD}✅ FLUXO COMPLETO CONCLUÍDO COM SUCESSO!{Cores.RESET}")
-            print(f"{Cores.VERDE}{Cores.BOLD}{'='*60}{Cores.RESET}")
-            print(f"\n{Cores.CIANO}⏱️  Tempo total: {Cores.AMARELO}{tempo_total/60:.1f} minutos{Cores.RESET}")
-            print(f"{Cores.CIANO}📁 Arquivos gerados:{Cores.RESET}")
-            print(f"   • {Cores.VERDE}json/produtos_urls.json{Cores.RESET}")
-            print(f"   • {Cores.VERDE}dados_extraidos/produtos_nutricionais.csv{Cores.RESET}")
+            print(f"\n{Colors.GREEN}{Colors.BOLD}{'=' * 60}{Colors.RESET}")
+            print(f"{Colors.GREEN}{Colors.BOLD}PIPELINE COMPLETE{Colors.RESET}")
+            print(f"{Colors.GREEN}{Colors.BOLD}{'=' * 60}{Colors.RESET}")
+            print(f"\n{Colors.CYAN}Total time:{Colors.RESET} {Colors.YELLOW}{elapsed / 60:.1f} minutes{Colors.RESET}")
+            print(f"{Colors.CYAN}Outputs:{Colors.RESET}")
+            print(f"   {Colors.GREEN}json/produtos_urls.json{Colors.RESET}")
+            print(f"   {Colors.GREEN}dados_extraidos/produtos_nutricionais.csv{Colors.RESET}")
             
         except Exception as e:
-            print(f"\n{Cores.VERMELHO}❌ Erro durante execução: {e}{Cores.RESET}")
+            print(f"\n{Colors.RED}Error: {e}{Colors.RESET}")
     else:
-        print(f"{Cores.AMARELO}⏭️  Operação cancelada{Cores.RESET}")
+        print(f"{Colors.YELLOW}Canceled.{Colors.RESET}")
 
-def listar_arquivos_gerados():
-    """Lista arquivos gerados pelo programa"""
-    print(f"\n{Cores.CIANO}{Cores.BOLD}📋 ARQUIVOS GERADOS{Cores.RESET}")
-    print(f"{Cores.AZUL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Cores.RESET}")
+def list_generated_files():
+    """List generated JSON and CSV artifacts."""
+    print(f"\n{Colors.CYAN}{Colors.BOLD}GENERATED FILES{Colors.RESET}")
+    print(f"{Colors.BLUE}{'-' * 60}{Colors.RESET}")
     
-    total_arquivos = 0
+    count = 0
     
-    # Lista JSONs
-    print(f"\n{Cores.VERDE}{Cores.BOLD}📊 ARQUIVOS JSON:{Cores.RESET}")
-    pasta_json = "json"
+    print(f"\n{Colors.GREEN}{Colors.BOLD}JSON:{Colors.RESET}")
+    folder_json = "json"
     
-    if os.path.exists(pasta_json):
-        arquivos_json = glob.glob(f"{pasta_json}/*.json")
+    if os.path.exists(folder_json):
+        json_files = glob.glob(f"{folder_json}/*.json")
         
-        if arquivos_json:
-            for i, arquivo in enumerate(sorted(arquivos_json, reverse=True), 1):
-                nome_arquivo = os.path.basename(arquivo)
-                tamanho = os.path.getsize(arquivo)
-                data_modificacao = datetime.fromtimestamp(os.path.getmtime(arquivo))
+        if json_files:
+            for i, path in enumerate(sorted(json_files, reverse=True), 1):
+                base = os.path.basename(path)
+                size = os.path.getsize(path)
+                mtime = datetime.fromtimestamp(os.path.getmtime(path))
                 
-                # Calcula o tamanho em formato legível
-                if tamanho < 1024:
-                    tamanho_str = f"{tamanho} B"
-                elif tamanho < 1024 * 1024:
-                    tamanho_str = f"{tamanho / 1024:.1f} KB"
+                if size < 1024:
+                    size_s = f"{size} B"
+                elif size < 1024 * 1024:
+                    size_s = f"{size / 1024:.1f} KB"
                 else:
-                    tamanho_str = f"{tamanho / (1024 * 1024):.1f} MB"
+                    size_s = f"{size / (1024 * 1024):.1f} MB"
                 
-                print(f"\n{Cores.AMARELO}{i:2d}.{Cores.RESET} {Cores.BRANCO}{nome_arquivo}{Cores.RESET}")
-                print(f"     📅 {data_modificacao.strftime('%d/%m/%Y %H:%M:%S')}")
-                print(f"     📏 {tamanho_str}")
-                total_arquivos += 1
+                print(f"\n{Colors.YELLOW}{i:2d}.{Colors.RESET} {Colors.WHITE}{base}{Colors.RESET}")
+                print(f"     {mtime.strftime('%Y-%m-%d %H:%M:%S')}  ({size_s})")
+                count += 1
         else:
-            print(f"   {Cores.AMARELO}📄 Nenhum arquivo JSON encontrado{Cores.RESET}")
+            print(f"   {Colors.YELLOW}No JSON files found.{Colors.RESET}")
     else:
-        print(f"   {Cores.AMARELO}📁 Pasta 'json/' não encontrada{Cores.RESET}")
+        print(f"   {Colors.YELLOW}Folder json/ not found.{Colors.RESET}")
     
-    # Lista CSVs
-    print(f"\n{Cores.VERDE}{Cores.BOLD}📈 ARQUIVOS CSV:{Cores.RESET}")
-    pasta_csv = "dados_extraidos"
+    print(f"\n{Colors.GREEN}{Colors.BOLD}CSV:{Colors.RESET}")
+    folder_csv = "dados_extraidos"
     
-    if os.path.exists(pasta_csv):
-        arquivos_csv = glob.glob(f"{pasta_csv}/*.csv")
+    if os.path.exists(folder_csv):
+        csv_files = glob.glob(f"{folder_csv}/*.csv")
         
-        if arquivos_csv:
-            for i, arquivo in enumerate(sorted(arquivos_csv, reverse=True), 1):
-                nome_arquivo = os.path.basename(arquivo)
-                tamanho = os.path.getsize(arquivo)
-                data_modificacao = datetime.fromtimestamp(os.path.getmtime(arquivo))
+        if csv_files:
+            for i, path in enumerate(sorted(csv_files, reverse=True), 1):
+                base = os.path.basename(path)
+                size = os.path.getsize(path)
+                mtime = datetime.fromtimestamp(os.path.getmtime(path))
                 
-                # Calcula o tamanho em formato legível
-                if tamanho < 1024:
-                    tamanho_str = f"{tamanho} B"
-                elif tamanho < 1024 * 1024:
-                    tamanho_str = f"{tamanho / 1024:.1f} KB"
+                if size < 1024:
+                    size_s = f"{size} B"
+                elif size < 1024 * 1024:
+                    size_s = f"{size / 1024:.1f} KB"
                 else:
-                    tamanho_str = f"{tamanho / (1024 * 1024):.1f} MB"
+                    size_s = f"{size / (1024 * 1024):.1f} MB"
                 
-                print(f"\n{Cores.AMARELO}{i:2d}.{Cores.RESET} {Cores.BRANCO}{nome_arquivo}{Cores.RESET}")
-                print(f"     📅 {data_modificacao.strftime('%d/%m/%Y %H:%M:%S')}")
-                print(f"     📏 {tamanho_str}")
-                total_arquivos += 1
+                print(f"\n{Colors.YELLOW}{i:2d}.{Colors.RESET} {Colors.WHITE}{base}{Colors.RESET}")
+                print(f"     {mtime.strftime('%Y-%m-%d %H:%M:%S')}  ({size_s})")
+                count += 1
         else:
-            print(f"   {Cores.AMARELO}📄 Nenhum arquivo CSV encontrado{Cores.RESET}")
+            print(f"   {Colors.YELLOW}No CSV files found.{Colors.RESET}")
     else:
-        print(f"   {Cores.AMARELO}📁 Pasta 'dados_extraidos/' não encontrada{Cores.RESET}")
+        print(f"   {Colors.YELLOW}Folder dados_extraidos/ not found.{Colors.RESET}")
     
-    print(f"\n{Cores.CIANO}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Cores.RESET}")
-    print(f"{Cores.VERDE}📊 Total de arquivos: {total_arquivos}{Cores.RESET}")
+    print(f"\n{Colors.BLUE}{'-' * 60}{Colors.RESET}")
+    print(f"{Colors.GREEN}Total entries: {count}{Colors.RESET}")
 
-def limpar_dados_antigos():
-    """Remove arquivos antigos"""
-    print(f"\n{Cores.CIANO}{Cores.BOLD}🗑️  LIMPAR DADOS ANTIGOS{Cores.RESET}")
-    print(f"{Cores.AZUL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Cores.RESET}")
+def wipe_generated_files():
+    """Delete generated JSON and CSV files."""
+    print(f"\n{Colors.CYAN}{Colors.BOLD}DELETE GENERATED FILES{Colors.RESET}")
+    print(f"{Colors.BLUE}{'-' * 60}{Colors.RESET}")
     
-    # Conta arquivos
-    arquivos_json = glob.glob("json/*.json") if os.path.exists("json") else []
-    arquivos_csv = glob.glob("dados_extraidos/*.csv") if os.path.exists("dados_extraidos") else []
-    total_arquivos = len(arquivos_json) + len(arquivos_csv)
+    json_paths = glob.glob("json/*.json") if os.path.exists("json") else []
+    csv_paths = glob.glob("dados_extraidos/*.csv") if os.path.exists("dados_extraidos") else []
+    total = len(json_paths) + len(csv_paths)
     
-    if total_arquivos == 0:
-        print(f"\n{Cores.VERDE}✅ Nenhum arquivo para limpar{Cores.RESET}")
+    if total == 0:
+        print(f"\n{Colors.GREEN}Nothing to delete.{Colors.RESET}")
         return
     
-    print(f"\n{Cores.AMARELO}⚠️  ATENÇÃO:{Cores.RESET}")
-    print(f"   • Serão removidos {Cores.VERMELHO}{total_arquivos} arquivos{Cores.RESET}")
-    print(f"     - {len(arquivos_json)} arquivo(s) JSON")
-    print(f"     - {len(arquivos_csv)} arquivo(s) CSV")
-    print(f"   • Esta ação {Cores.VERMELHO}NÃO PODE ser desfeita{Cores.RESET}")
+    print(f"\n{Colors.YELLOW}Warning:{Colors.RESET}")
+    print(f"   {Colors.RED}{total} file(s){Colors.RESET} will be permanently removed:")
+    print(f"     • {len(json_paths)} JSON")
+    print(f"     • {len(csv_paths)} CSV")
+    print(f"   This action {Colors.RED}cannot be undone.{Colors.RESET}")
     
-    confirmar = input(f"\n{Cores.MAGENTA}🤔 Tem certeza? Digite 'CONFIRMAR' para prosseguir: {Cores.RESET}")
+    confirm = input(f"\n{Colors.MAGENTA}Type CONFIRM to proceed: {Colors.RESET}")
     
-    if confirmar == "CONFIRMAR":
+    if confirm == "CONFIRM":
         try:
-            removidos = 0
+            removed = 0
+            for p in json_paths + csv_paths:
+                os.remove(p)
+                removed += 1
+                print(f"{Colors.YELLOW}Removed: {os.path.basename(p)}{Colors.RESET}")
             
-            for arquivo in arquivos_json + arquivos_csv:
-                os.remove(arquivo)
-                removidos += 1
-                print(f"{Cores.AMARELO}🗑️  Removido: {os.path.basename(arquivo)}{Cores.RESET}")
-            
-            print(f"\n{Cores.VERDE}✅ {removidos} arquivo(s) removido(s) com sucesso!{Cores.RESET}")
+            print(f"\n{Colors.GREEN}{removed} file(s) deleted.{Colors.RESET}")
         except Exception as e:
-            print(f"\n{Cores.VERMELHO}❌ Erro ao remover arquivos: {e}{Cores.RESET}")
+            print(f"\n{Colors.RED}Error while deleting: {e}{Colors.RESET}")
     else:
-        print(f"{Cores.AMARELO}⏭️  Operação cancelada{Cores.RESET}")
+        print(f"{Colors.YELLOW}Canceled.{Colors.RESET}")
 
-def mostrar_sobre():
-    """Exibe informações sobre o programa"""
-    sobre = f"""
-{Cores.CIANO}{Cores.BOLD}📖 SOBRE O ADAPTOGEN SCRAPER{Cores.RESET}
-{Cores.AZUL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Cores.RESET}
+def print_about():
+    """Show project information."""
+    about = f"""
+{Colors.CYAN}{Colors.BOLD}ABOUT — ADAPTOGEN SCRAPER{Colors.RESET}
+{Colors.BLUE}{'-' * 60}{Colors.RESET}
 
-{Cores.VERDE}🎯 OBJETIVO:{Cores.RESET}
-   Coletar e extrair automaticamente informações nutricionais de produtos
-   do site Adaptogen (adaptogen.com.br), facilitando a análise e comparação
-   de dados nutricionais de suplementos.
+{Colors.GREEN}Purpose:{Colors.RESET}
+   Collect and export nutritional facts from Adaptogen products
+   (adaptogen.com.br) for spreadsheet-style analysis.
 
-{Cores.VERDE}📊 FUNCIONALIDADES:{Cores.RESET}
-   • Coleta automática de URLs de produtos em 4 categorias
-   • Suporte a paginação automática (categoria Proteínas)
-   • Extração inteligente de tabelas nutricionais
-   • Exportação de dados em formato JSON e CSV
-   • Tratamento de valores ausentes (converte para 0)
-   • Registro de data/hora da coleta
+{Colors.GREEN}Features:{Colors.RESET}
+   • Four storefront categories scraped for product links
+   • Automatic pagination on the Protein category listing
+   • Structured parsing of the nutrition table block (`div.flow` → `table`)
+   • Outputs JSON URL index + flattened CSV metric rows
+   • Missing numeric cells normalized to zero
+   • Per-row collection timestamp (`data_coleta`)
 
-{Cores.VERDE}🛠️  TECNOLOGIAS:{Cores.RESET}
-   • Python 3.13+
-   • requests - Requisições HTTP
-   • beautifulsoup4 - Parsing HTML
-   • lxml - Parser rápido
-   • csv - Manipulação de CSV
+{Colors.GREEN}Stack:{Colors.RESET}
+   • Python (see local interpreter version)
+   • requests — HTTP
+   • BeautifulSoup — HTML parsing
+   • lxml — fast backend for BeautifulSoup
 
-{Cores.VERDE}📂 ARQUIVOS GERADOS:{Cores.RESET}
-   • Formato JSON: json/produtos_urls.json
-   • Formato CSV: dados_extraidos/produtos_nutricionais.csv
-   • Estrutura: Nome, URL, Porção, Macros, Data, Categoria
+{Colors.GREEN}Outputs:{Colors.RESET}
+   • json/produtos_urls.json — category buckets of absolute URLs
+   • dados_extraidos/produtos_nutricionais.csv — macros + metadata columns
 
-{Cores.VERDE}⚡ CARACTERÍSTICAS:{Cores.RESET}
-   • Headers personalizados para simular navegador real
-   • Delay de 2s entre requisições para respeitar o servidor
-   • Logging detalhado do progresso e erros
-   • Interface CLI colorida e intuitiva
-   • Tratamento robusto de erros HTTP
+{Colors.GREEN}Behavior:{Colors.RESET}
+   • Browser-like request headers (User-Agent, Accept-*)
+   • 2-second delay between requests (`REQUEST_DELAY`)
 
-{Cores.VERDE}📝 DESENVOLVIDO POR:{Cores.RESET}
-   • Sidnei Almeida
-   • GitHub: github.com/sidnei-almeida
-   • Versão: 1.0
-   • Data: {datetime.now().strftime('%B %Y')}
+{Colors.GREEN}Author:{Colors.RESET}
+   Sidnei Almeida — https://github.com/sidnei-almeida
+   Version 1.0 — {datetime.now().strftime('%B %Y')}
 
-{Cores.AZUL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Cores.RESET}
+{Colors.BLUE}{'-' * 60}{Colors.RESET}
 """
-    print(sobre)
+    print(about)
 
-def pausar():
-    """Pausa o programa aguardando input do usuário"""
-    input(f"\n{Cores.CIANO}⏯️  Pressione Enter para continuar...{Cores.RESET}")
+def wait_for_continue():
+    """Pause until Enter is pressed."""
+    input(f"\n{Colors.CYAN}Press Enter to continue...{Colors.RESET}")
 
 # ============================================================================
-# 🚀 FUNÇÃO PRINCIPAL
+# Entry point
 # ============================================================================
 def main():
-    """Função principal do programa"""
+    """Run the interactive menu loop."""
     try:
         while True:
-            limpar_terminal()
-            mostrar_banner()
-            mostrar_menu()
+            clear_screen()
+            print_banner()
+            print_main_menu()
             
-            escolha = obter_escolha()
+            choice = prompt_choice()
             
-            if escolha == "1":
-                coletar_urls()
-                pausar()
+            if choice == "1":
+                collect_urls()
+                wait_for_continue()
                 
-            elif escolha == "2":
-                extrair_dados_nutricionais()
-                pausar()
+            elif choice == "2":
+                extract_nutrition()
+                wait_for_continue()
                 
-            elif escolha == "3":
-                executar_fluxo_completo()
-                pausar()
+            elif choice == "3":
+                run_full_pipeline()
+                wait_for_continue()
                 
-            elif escolha == "4":
-                listar_arquivos_gerados()
-                pausar()
+            elif choice == "4":
+                list_generated_files()
+                wait_for_continue()
                 
-            elif escolha == "5":
-                limpar_dados_antigos()
-                pausar()
+            elif choice == "5":
+                wipe_generated_files()
+                wait_for_continue()
                 
-            elif escolha == "6":
-                mostrar_sobre()
-                pausar()
+            elif choice == "6":
+                print_about()
+                wait_for_continue()
                 
-            elif escolha == "7":
-                print(f"\n{Cores.VERDE}👋 Obrigado por usar o Adaptogen Scraper!{Cores.RESET}")
-                print(f"{Cores.CIANO}🚀 Até a próxima!{Cores.RESET}\n")
+            elif choice == "7":
+                print(f"\n{Colors.GREEN}Thanks for using Adaptogen Scraper.{Colors.RESET}")
+                print(f"{Colors.CYAN}Goodbye.{Colors.RESET}\n")
                 break
                 
             else:
-                print(f"\n{Cores.VERMELHO}❌ Opção inválida! Por favor, escolha entre 1-7{Cores.RESET}")
+                print(f"\n{Colors.RED}Invalid option — choose 1-7.{Colors.RESET}")
                 time.sleep(2)
                 
     except KeyboardInterrupt:
-        print(f"\n\n{Cores.AMARELO}👋 Programa encerrado pelo usuário. Até logo!{Cores.RESET}\n")
+        print(f"\n\n{Colors.YELLOW}Stopped by user. Goodbye.{Colors.RESET}\n")
     except Exception as e:
-        print(f"\n{Cores.VERMELHO}❌ Erro inesperado: {e}{Cores.RESET}")
+        print(f"\n{Colors.RED}Unexpected error: {e}{Colors.RESET}")
 
 if __name__ == "__main__":
     main()
-
